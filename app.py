@@ -1,14 +1,17 @@
 import streamlit as st
+import pandas as pd
 from PIL import Image
 import numpy as np
 import cv2
 
 from ocr_pipeline import extract_text, export_to_excel
+from jamabandi_mapper_component import jamabandi_mapper_component
 from schema_mapping import normalize_headers
 
 st.set_page_config(page_title="Jamabandi OCR Genie", layout="wide")
 st.title("Jamabandi OCR Genie 🧞‍♂️")
 
+# 🧭 Sidebar Onboarding
 with st.sidebar:
     st.header("🧭 Onboarding Tips")
     st.markdown("""
@@ -18,7 +21,15 @@ with st.sidebar:
     - Click 'Export to Excel' to download styled output
     """)
 
-uploaded_file = st.file_uploader("Upload Jamabandi scan", type=["jpg", "jpeg", "png"])
+    mode = st.radio("Choose Mode", ["Quick Export", "Schema Mapping"])
+    use_demo = st.checkbox("Use Demo Image")
+
+# 📤 File Upload or Demo Load
+uploaded_file = None
+if use_demo:
+    uploaded_file = "demo_images/demo_jamabandi.png"  # Replace with actual path or load from repo
+else:
+    uploaded_file = st.file_uploader("Upload Jamabandi scan", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
@@ -35,6 +46,13 @@ if uploaded_file:
     st.write("🔤 Normalized Headers:", headers)
     st.write("📄 Extracted Rows:", rows)
 
+    df_raw = pd.DataFrame(rows, columns=headers)
+
+    # 🧩 Optional Schema Mapping
+    if mode == "Schema Mapping":
+        jamabandi_mapper_component(df_raw)
+
+    # 📥 Excel Export
     if st.button("Export to Excel"):
         excel_file = export_to_excel(headers, rows)
         st.download_button(
