@@ -6,12 +6,19 @@ import cv2
 
 from ocr_pipeline import extract_text, export_to_excel
 from jamabandi_mapper_component import jamabandi_mapper_component
-from schema_mapping import normalize_headers
+
+# 📍 Region Detector
+def detect_region(text):
+    text = text.lower()
+    if "फतेहाबाद" in text or "भटिंडा" in text:
+        return "Punjab"
+    elif "करनाल" in text or "यमुनानगर" in text:
+        return "Haryana"
+    return "Default"
 
 st.set_page_config(page_title="Jamabandi OCR Genie", layout="wide")
 st.title("Jamabandi OCR Genie 🧞‍♂️")
 
-# 🧭 Sidebar Onboarding
 with st.sidebar:
     st.header("🧭 Onboarding Tips")
     st.markdown("""
@@ -20,16 +27,11 @@ with st.sidebar:
     - Common headers like `खाता संख्या`, `खसरा नंबर` will be auto-normalized
     - Click 'Export to Excel' to download styled output
     """)
-
     mode = st.radio("Choose Mode", ["Quick Export", "Schema Mapping"])
     use_demo = st.checkbox("Use Demo Image")
 
 # 📤 File Upload or Demo Load
-uploaded_file = None
-if use_demo:
-    uploaded_file = "demo_images/demo_jamabandi.png"  # Replace with actual path or load from repo
-else:
-    uploaded_file = st.file_uploader("Upload Jamabandi scan", type=["jpg", "jpeg", "png"])
+uploaded_file = "demo_images/demo_jamabandi.png" if use_demo else st.file_uploader("Upload Jamabandi scan", type=["jpg", "jpeg", "png"])
 
 if uploaded_file:
     image = Image.open(uploaded_file).convert("RGB")
@@ -47,14 +49,13 @@ if uploaded_file:
     st.write("📄 Extracted Rows:", rows)
 
     df_raw = pd.DataFrame(rows, columns=headers)
+    region_hint = detect_region(raw_text)
+    st.info(f"📍 Detected Region: {region_hint}")
 
-    # 🧩 Optional Schema Mapping
-    if mode == "Schema Mapping":
-        jamabandi_mapper_component(df_raw)
+    mapped_df = jamabandi_mapper_component(df_raw, region_hint=region_hint) if mode == "Schema Mapping" else df_raw
 
-    # 📥 Excel Export
     if st.button("Export to Excel"):
-        excel_file = export_to_excel(headers, rows)
+        excel_file = export_to_excel(mapped_df.columns.tolist(), mapped_df.values.tolist())
         st.download_button(
             label="Download Excel",
             data=excel_file,
