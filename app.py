@@ -1,4 +1,12 @@
 import streamlit as st
+
+# ✅ OpenCV health check
+try:
+    import cv2
+except Exception as e:
+    st.error(f"❌ OpenCV failed to load: {e}")
+    st.stop()
+
 import pandas as pd
 from PIL import Image
 import numpy as np
