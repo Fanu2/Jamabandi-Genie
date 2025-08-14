@@ -1,16 +1,18 @@
-import pytesseract
+import easyocr
 import openpyxl
 from openpyxl.styles import Font
 from io import BytesIO
 
+reader = easyocr.Reader(['hi'], gpu=False)
+
 def extract_text(img_cv):
-    return pytesseract.image_to_string(img_cv, lang="hin")
+    results = reader.readtext(img_cv, detail=0)
+    return "\n".join(results)
 
 def export_to_excel(headers, rows):
     wb = openpyxl.Workbook()
     ws = wb.active
 
-    # Apply Mangal font
     mangal_font = Font(name="Mangal", size=12)
 
     ws.append(headers)
