@@ -3,7 +3,7 @@ from PIL import Image
 import numpy as np
 import cv2
 
-from utils.ocr_pipeline import extract_text, export_to_excel
+from ocr_pipeline import extract_text, export_to_excel
 from schema_mapping import normalize_headers  # or jamabandi_mapper_component if refactored
 
 # 🧞‍♂️ App Title
