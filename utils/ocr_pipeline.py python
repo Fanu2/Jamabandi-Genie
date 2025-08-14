@@ -1,0 +1,26 @@
+import pytesseract
+import openpyxl
+from openpyxl.styles import Font
+from io import BytesIO
+
+def extract_text(image_cv):
+    gray = cv2.cvtColor(image_cv, cv2.COLOR_BGR2GRAY)
+    return pytesseract.image_to_string(gray, lang="hin")
+
+def export_to_excel(headers, rows):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    mangal_font = Font(name="Mangal", size=12)
+
+    ws.append(headers)
+    for row in rows:
+        ws.append(row)
+
+    for row in ws.iter_rows():
+        for cell in row:
+            cell.font = mangal_font
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer
