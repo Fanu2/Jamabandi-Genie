@@ -31,10 +31,13 @@ with st.sidebar:
     use_demo = st.checkbox("Use Demo Image")
 
 # 📤 File Upload or Demo Load
-uploaded_file = "demo_images/demo_jamabandi.png" if use_demo else st.file_uploader("Upload Jamabandi scan", type=["jpg", "jpeg", "png"])
+if use_demo:
+    image = Image.open("demo_images/demo_jamabandi.png").convert("RGB")
+else:
+    uploaded_file = st.file_uploader("Upload Jamabandi scan", type=["jpg", "jpeg", "png"])
+    if uploaded_file:
+        image = Image.open(uploaded_file).convert("RGB")
 
-if uploaded_file:
-    image = Image.open(uploaded_file).convert("RGB")
     img_cv = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
 
     st.image(image, caption="Uploaded Image", use_column_width=True)
