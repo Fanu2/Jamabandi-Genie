@@ -1,7 +1,6 @@
 streamlit
-opencv-python-headless>=4.7.0.72
+opencv-python-headless
+easyocr
+pytesseract
 numpy
 Pillow
-easyocr
-openpyxl
-rapidfuzz>=3.0.0
