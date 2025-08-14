@@ -9,5 +9,6 @@
   "extensions": [
     "ms-python.python"
   ],
-  "postCreateCommand": "pip install -r requirements.txt"
+  "postCreateCommand": "streamlit run streamlit_app.py",
+  "forwardPorts": [8501]
 }
