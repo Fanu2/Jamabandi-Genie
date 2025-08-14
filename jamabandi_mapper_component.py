@@ -1,103 +1,160 @@
 import streamlit as st
 import pandas as pd
 import json
-import os
-from openpyxl import Workbook
-from openpyxl.styles import Font
-from openpyxl.utils.dataframe import dataframe_to_rows
 from rapidfuzz import process
+from pathlib import Path
 
-# 🗂 Predefined Jamabandi schemas
-JAMABANDI_SCHEMAS = {
-    "Haryana Standard": {
-        "विवरण सहित मालिक नाम": "Owner Name",
-        "विवरण सहित कारकातार": "Cultivator",
-        "रकबा और किस्म जमीन": "Area and Land Type",
-        "खेवट संख्या": "Khewat No.",
-        "खाता संख्या": "Khata No.",
-        "फसल का नाम": "Crop Name",
-        "जमाबंदी वर्ष": "Jamabandi Year"
-    },
-    "Punjab Variant": {
-        "मालिक का नाम": "Owner Name",
-        "किसान का नाम": "Cultivator",
-        "कुल रकबा": "Total Area",
-        "खसरा नंबर": "Khasra No.",
-        "फसल विवरण": "Crop Details",
-        "वर्ष": "Year"
-    },
-    "Custom Mapping": {}
+# 📁 Paths
+MAPPING_FILE = Path("saved_mappings.json")
+SCHEMA_DIR = Path("schemas")
+CUSTOM_SCHEMA_FILE = SCHEMA_DIR / "custom_schema.json"
+
+# 📜 Default schema
+default_schema = {
+    "खाता संख्या": "account_number",
+    "खसरा नंबर": "plot_number",
+    "साङ्गीदार का नाम": "owner_name",
+    "रकबा": "area",
+    "अभिलेख में दुरुस्ती का लेखा": "correction_note",
+    "शेरक्षर खसरा नाम भूमि": "land_type",
+    "खिंजरि": "category",
+    "नियम": "rule",
 }
 
-# 📥 Load saved custom mapping
-def load_custom_mapping():
-    if os.path.exists("custom_mapping.json"):
-        with open("custom_mapping.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+# 📊 Schema Preview Table
+def show_schema_preview(schema):
+    st.markdown("### 📖 Jamabandi Schema Preview")
+    schema_df = pd.DataFrame({
+        "Hindi Header": list(schema.keys()),
+        "Normalized Field": list(schema.values())
+    })
+    st.dataframe(schema_df)
 
-# 💾 Save custom mapping
-def save_custom_mapping(mapping):
-    with open("custom_mapping.json", "w", encoding="utf-8") as f:
-        json.dump(mapping, f, ensure_ascii=False, indent=2)
+# 🧰 Mapping Editor UI
+def mapping_editor(schema):
+    st.markdown("### 🛠 Edit Schema Mapping")
+    edited = {}
+    for hindi, norm in schema.items():
+        new_norm = st.text_input(f"Map '{hindi}' to:", value=norm, key=f"edit_{hindi}")
+        edited[hindi] = new_norm
 
-# 🔁 Rename headers using schema
-def remap_headers(df, schema):
-    return df.rename(columns=lambda col: schema.get(col.strip(), col))
+    if st.button("💾 Save Edited Schema"):
+        CUSTOM_SCHEMA_FILE.write_text(json.dumps(edited, ensure_ascii=False, indent=2))
+        st.success("✅ Custom schema saved.")
+    return edited
 
-# 🧵 Fuzzy match headers to schema keys
-def fuzzy_remap(df, schema):
+# 📤 Upload or Select Schema
+def load_custom_schema(default="Default"):
+    schema_files = {
+        "Default": default_schema,
+        "Punjab": SCHEMA_DIR / "punjab_schema.json",
+        "Haryana": SCHEMA_DIR / "haryana_schema.json",
+        "Custom": CUSTOM_SCHEMA_FILE
+    }
+
+    selected = st.selectbox("📂 Choose Schema Version", options=list(schema_files.keys()), index=list(schema_files.keys()).index(default))
+    if selected == "Default":
+        return default_schema
+
+    try:
+        path = schema_files[selected]
+        schema = json.loads(path.read_text())
+        st.success(f"✅ Loaded {selected} schema.")
+        return schema
+    except Exception as e:
+        st.error(f"❌ Failed to load {selected} schema: {e}")
+        return default_schema
+
+# 🧮 Compare Two Schemas
+def compare_schemas(schema_a, schema_b, label_a="Schema A", label_b="Schema B"):
+    st.markdown("### 🧮 Schema Comparison")
+    all_keys = sorted(set(schema_a.keys()) | set(schema_b.keys()))
+    comparison = [(key, schema_a.get(key, "❌ Missing"), schema_b.get(key, "❌ Missing")) for key in all_keys]
+    df_compare = pd.DataFrame(comparison, columns=["Hindi Header", label_a, label_b])
+    st.dataframe(df_compare)
+
+# 🧪 Validate Schema
+def validate_schema(schema):
+    errors = []
+    for k, v in schema.items():
+        if not isinstance(k, str) or not isinstance(v, str):
+            errors.append(f"Non-string entry: '{k}' → '{v}'")
+    norm_values = list(schema.values())
+    duplicates = [v for v in set(norm_values) if norm_values.count(v) > 1]
+    if duplicates:
+        errors.append(f"Duplicate normalized fields: {', '.join(duplicates)}")
+    required = ["account_number", "plot_number", "owner_name"]
+    missing = [field for field in required if field not in norm_values]
+    if missing:
+        errors.append(f"Missing required fields: {', '.join(missing)}")
+    return errors
+
+# 📥 Excel Preview
+def show_excel_preview(df):
+    st.markdown("### 📥 Excel Preview")
+    styled_df = df.copy()
+    styled_df.columns = [f"📝 {col}" for col in styled_df.columns]
+    st.dataframe(styled_df)
+
+# 🔍 Fuzzy + Manual Remapping
+def fuzzy_remap(df, schema, enable_manual=True):
     mapped = {}
+    unmatched = []
+
+    saved = {}
+    if MAPPING_FILE.exists():
+        saved = json.loads(MAPPING_FILE.read_text())
+
     for col in df.columns:
-        match, score = process.extractOne(col, schema.keys())
-        mapped[col] = schema.get(match, col) if score > 80 else col
-    return df.rename(columns=mapped)
+        if col in saved:
+            mapped[col] = saved[col]
+            continue
+        result = process.extractOne(col, schema.keys(), score_cutoff=75)
+        if result:
+            match, score = result
+            mapped[col] = schema[match]
+        else:
+            unmatched.append(col)
+            mapped[col] = col
 
-# 📤 Export to Excel with Mangal font
-def export_with_mangal_font(df, filename="jamabandi_cleaned.xlsx"):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Jamabandi Data"
+    if enable_manual and unmatched:
+        st.warning("Some headers couldn't be auto-mapped. Please correct them manually:")
+        for col in unmatched:
+            new_header = st.selectbox(f"Map '{col}' to:", options=list(schema.values()), key=f"manual_map_{col}")
+            mapped[col] = new_header
+            saved[col] = new_header
+        MAPPING_FILE.write_text(json.dumps(saved, ensure_ascii=False, indent=2))
+        st.success("✅ Manual mappings saved.")
 
-    mangal_font = Font(name="Mangal", size=12)
+    df.columns = [mapped.get(col, col) for col in df.columns]
+    return df
 
-    for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
-        for c_idx, value in enumerate(row, 1):
-            cell = ws.cell(row=r_idx, column=c_idx, value=value)
-            cell.font = mangal_font
+# 🧩 Main Component
+def jamabandi_mapper_component(df_raw, region_hint="Default"):
+    st.subheader("🧩 Jamabandi Schema Mapper")
 
-    wb.save(filename)
+    schema = load_custom_schema(default=region_hint)
+    show_schema_preview(schema)
 
-# 🧞‍♂️ Main schema mapping component
-def jamabandi_mapper_component(df_raw):
-    st.sidebar.header("🗂 Jamabandi Schema Selection")
-    schema_choice = st.sidebar.selectbox("Choose Schema", list(JAMABANDI_SCHEMAS.keys()))
+    if st.checkbox("✏️ Edit Schema Mapping"):
+        schema = mapping_editor(schema)
 
-    if schema_choice == "Custom Mapping":
-        st.subheader("🔧 Define Custom Header Mapping")
-        custom_map = load_custom_mapping()
-        updated_map = {}
+    if st.checkbox("🔍 Compare Punjab vs Haryana Schema"):
+        schema_punjab = json.loads((SCHEMA_DIR / "punjab_schema.json").read_text())
+        schema_haryana = json.loads((SCHEMA_DIR / "haryana_schema.json").read_text())
+        compare_schemas(schema_punjab, schema_haryana, "Punjab", "Haryana")
 
-        for col in df_raw.columns:
-            default = custom_map.get(col, col)
-            new_label = st.text_input(f"Rename '{col}' to:", value=default)
-            updated_map[col] = new_label
+    errors = validate_schema(schema)
+    if errors:
+        st.error("❌ Schema validation failed:")
+        for err in errors:
+            st.markdown(f"- {err}")
+        st.stop()
 
-        if st.button("💾 Save Custom Mapping"):
-            save_custom_mapping(updated_map)
-            st.success("✅ Custom mapping saved")
+    enable_manual = st.checkbox("Enable Manual Header Mapping", value=True)
+    mapped_df = fuzzy_remap(df_raw, schema, enable_manual=enable_manual)
 
-        mapped_df = remap_headers(df_raw, updated_map)
-
-    else:
-        selected_schema = JAMABANDI_SCHEMAS[schema_choice]
-        mapped_df = fuzzy_remap(df_raw, selected_schema)
-
-    st.subheader("✅ Mapped Table Preview")
     st.dataframe(mapped_df)
-
-    if st.button("📤 Export to Excel"):
-        export_with_mangal_font(mapped_df)
-        st.success("Exported with Mangal font as jamabandi_cleaned.xlsx")
+    show_excel_preview(mapped_df)
 
     return mapped_df
