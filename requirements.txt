@@ -4,3 +4,4 @@ numpy
 Pillow
 easyocr
 openpyxl
+rapidfuzz>=3.0.0
