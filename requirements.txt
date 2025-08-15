@@ -14,3 +14,4 @@ plotly>=5.23.0
 
 # Optional: machine learning (if needed)
 scikit-learn>=1.5.0
+openpyxl>=3.1.0
