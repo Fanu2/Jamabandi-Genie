@@ -6,10 +6,7 @@
   "settings": {
     "terminal.integrated.defaultProfile.linux": "bash"
   },
-  "extensions": [
-    "ms-python.python"
-  ],
+  "extensions": ["ms-python.python"],
   "postCreateCommand": "streamlit run streamlit_app.py",
   "forwardPorts": [8501]
 }
-#force rebuild
