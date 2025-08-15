@@ -12,4 +12,3 @@
   "postCreateCommand": "streamlit run streamlit_app.py",
   "forwardPorts": [8501]
 }
-#force rebuild
