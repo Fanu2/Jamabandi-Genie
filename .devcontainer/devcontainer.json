@@ -1,12 +1,10 @@
 {
-  "name": "Jamabandi Genie",
+  "name": "Minimal Starter",
   "build": {
     "dockerfile": "Dockerfile"
   },
   "settings": {
     "terminal.integrated.defaultProfile.linux": "bash"
   },
-  "extensions": ["ms-python.python"],
-  "postCreateCommand": "streamlit run streamlit_app.py",
-  "forwardPorts": [8501]
+  "extensions": ["ms-python.python"]
 }
