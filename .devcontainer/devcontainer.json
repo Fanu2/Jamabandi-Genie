@@ -9,6 +9,6 @@
   "extensions": [
     "ms-python.python"
   ],
-  "postCreateCommand": "streamlit run streamlit_app.py",
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && streamlit run streamlit_app.py || true",
   "forwardPorts": [8501]
 }
